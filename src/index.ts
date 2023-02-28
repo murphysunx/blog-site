@@ -1,12 +1,15 @@
+import { ApolloServer } from "@apollo/server";
+import { expressMiddleware } from "@apollo/server/express4";
 import { MikroORM } from "@mikro-orm/core";
-import { ApolloServer } from "apollo-server-express";
+import bodyParser from "body-parser";
 import connectRedis from "connect-redis";
+import cors from "cors";
 import express from "express";
 import session from "express-session";
+import http from "http";
 import { createClient } from "redis";
 import "reflect-metadata";
 import { buildSchema } from "type-graphql";
-import { __prod__ } from "./constants";
 import mikroOrmConfig from "./mikro-orm.config";
 import { HelloResolver } from "./resolvers/hello";
 import { PostResolver } from "./resolvers/post";
@@ -21,10 +24,14 @@ const main = async () => {
   const em = orm.em.fork();
 
   const app = express();
+  const httpServer = http.createServer(app);
 
   const RedisStore = connectRedis(session);
   // TODO: client not working yet
-  const redisClient = createClient();
+  const redisClient = createClient({
+    legacyMode: true,
+  });
+  await redisClient.connect();
 
   app.use(
     session({
@@ -36,38 +43,41 @@ const main = async () => {
       cookie: {
         maxAge: 1000 * 60 * 60 * 24 * 365 * 100, // 10 years
         httpOnly: true,
-        sameSite: "lax", // csrf
-        secure: __prod__, // cookie only works in https
+        // sameSite: "lax", // csrf
+        // secure: __prod__, // cookie only works in https
+        sameSite: "none",
+        secure: true,
       },
-      saveUninitialized: false,
+      saveUninitialized: true,
       secret: "wfwefwfcvw",
       resave: false,
     })
   );
 
-  const apolloServer = new ApolloServer({
+  const apolloServer = new ApolloServer<MyContext>({
     schema: await buildSchema({
       resolvers: [HelloResolver, PostResolver, UserResolver],
       validate: false,
     }),
-    context: ({ req, res }): MyContext => ({ em, req, res }),
   });
 
   await apolloServer.start();
-  apolloServer.applyMiddleware({ app });
 
-  app.listen(4000, () => {
-    console.log("server started on localhost:4000");
-  });
-  // const post = em.create(Post, {
-  //   title: "my first post",
-  //   createdAt: "",
-  //   updatedAt: "",
-  // });
-  // await em.persistAndFlush(post);
+  app.use(
+    cors({
+      credentials: true,
+      origin: "https://studio.apollographql.com",
+    }),
+    bodyParser.json(),
+    expressMiddleware(apolloServer, {
+      context: async ({ req, res }) => ({ req, res, em }),
+    })
+  );
 
-  // const posts = await em.find(Post, {});
-  // console.log(posts);
+  await new Promise<void>((resolve) =>
+    httpServer.listen({ port: 4000 }, resolve)
+  );
+
 };
 
 main().catch((err) => {
