@@ -10,6 +10,7 @@ import http from "http";
 import { createClient } from "redis";
 import "reflect-metadata";
 import { buildSchema } from "type-graphql";
+import { __prod__ } from "./constants";
 import mikroOrmConfig from "./mikro-orm.config";
 import { HelloResolver } from "./resolvers/hello";
 import { PostResolver } from "./resolvers/post";
@@ -27,7 +28,6 @@ const main = async () => {
   const httpServer = http.createServer(app);
 
   const RedisStore = connectRedis(session);
-  // TODO: client not working yet
   const redisClient = createClient({
     legacyMode: true,
   });
@@ -43,10 +43,8 @@ const main = async () => {
       cookie: {
         maxAge: 1000 * 60 * 60 * 24 * 365 * 100, // 10 years
         httpOnly: true,
-        // sameSite: "lax", // csrf
-        // secure: __prod__, // cookie only works in https
-        sameSite: "none",
-        secure: true,
+        sameSite: "lax", // csrf
+        secure: __prod__, // cookie only works in https when true
       },
       saveUninitialized: true,
       secret: "wfwefwfcvw",
@@ -64,10 +62,10 @@ const main = async () => {
   await apolloServer.start();
 
   app.use(
-    cors({
-      credentials: true,
-      origin: "https://studio.apollographql.com",
-    }),
+    // cors({
+    //   credentials: true,
+    //   origin: "http://localhost:4000",
+    // }),
     bodyParser.json(),
     expressMiddleware(apolloServer, {
       context: async ({ req, res }) => ({ req, res, em }),
@@ -77,7 +75,6 @@ const main = async () => {
   await new Promise<void>((resolve) =>
     httpServer.listen({ port: 4000 }, resolve)
   );
-
 };
 
 main().catch((err) => {
