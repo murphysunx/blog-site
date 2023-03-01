@@ -43,9 +43,11 @@ class UserResponse {
 export class UserResolver {
   @Query(() => User, { nullable: true })
   async me(@Ctx() { req, em }: MyContext) {
+    console.log("UserResolver me session", req.session);
     if (!req.session.userID) {
       return null;
     }
+
     const user = await em.findOne(User, { id: req.session.userID });
     return user;
   }
@@ -127,7 +129,11 @@ export class UserResolver {
       };
     }
 
+    // store user id session
+    // this will set a cookie on the user
+    // keep them logged in
     req.session.userID = user.id;
+    console.log("UserResolver login session", req.session);
 
     return {
       user,

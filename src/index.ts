@@ -62,10 +62,10 @@ const main = async () => {
   await apolloServer.start();
 
   app.use(
-    // cors({
-    //   credentials: true,
-    //   origin: "http://localhost:4000",
-    // }),
+    cors({
+      credentials: true,
+      origin: "http://localhost:3000",
+    }),
     bodyParser.json(),
     expressMiddleware(apolloServer, {
       context: async ({ req, res }) => ({ req, res, em }),
